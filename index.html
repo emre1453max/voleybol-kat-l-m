@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voleybol Katılım Listesi</title>
+  <style>
+    :root {
+      --bg: #eef2f7;
+      --card: #ffffff;
+      --text: #000000;
+      --button: #007bff;
+      --button-hover: #0056b3;
+    }
+    body.dark {
+      --bg: #121212;
+      --card: #1e1e1e;
+      --text: #ffffff;
+      --button: #2196f3;
+      --button-hover: #1976d2;
+    }
+    body {
+      font-family: Arial, sans-serif; background: var(--bg); color: var(--text);
+      text-align: center; padding: 20px;
+    }
+    h1, h2 { margin: 15px 0; }
+    button {
+      margin: 5px; padding: 10px 16px; border: none;
+      background-color: var(--button); color: white; border-radius: 6px;
+    }
+    button:hover { background-color: var(--button-hover); }
+    .list-container {
+      background: var(--card); padding: 15px; border-radius: 10px;
+      margin: 15px auto; max-width: 600px; box-shadow: 0 2px 8px #ccc;
+    }
+    ul { list-style: none; padding: 0; }
+    li { padding: 5px 0; }
+    #admin-panel, #admin-users { margin-top: 20px; }
+    #admin-users li button { margin-left: 5px; }
+    .login-form input {
+      padding: 8px; margin: 5px; border-radius: 5px; border: 1px solid #ccc;
+    }
+    .counter-buttons button { margin-left: 5px; padding: 3px 8px; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>📅 <span id="tarih"></span> Voleybol Katılım Listesi</h1>
+  <p id="user-greeting"></p>
+
+  <div id="login-form" class="login-form">
+    <input type="text" id="username" placeholder="Kullanıcı adı">
+    <input type="password" id="password" placeholder="Şifre">
+    <button onclick="login()">Giriş Yap</button>
+  </div>
+
+  <button id="logout-btn" onclick="logout()" style="display:none;">Çıkış Yap</button>
+  <button id="add-btn" onclick="addToList()" style="display:none;">İsmini Listeye Ekle</button>
+  <button id="remove-btn" onclick="removeFromList()" style="display:none;">Listeden Ayrıl</button>
+  <button onclick="toggleDarkMode()">🌙/☀️ Tema Değiştir</button>
+
+  <div class="list-container">
+    <h2>🟢 Ana Takım</h2>
+    <ul id="ana-listesi"></ul>
+  </div>
+
+  <div class="list-container">
+    <h2>🟡 Yedekler</h2>
+    <ul id="yedek-listesi"></ul>
+  </div>
+
+  <div class="list-container" id="ucuncu-takim" style="display:none;">
+    <h2>🔴 3. Takım</h2>
+    <ul id="ucuncu-listesi"></ul>
+  </div>
+
+  <div id="admin-panel" style="display:none;">
+    <h3>🔧 Admin Paneli</h3>
+    <button onclick="registerUser()">Yeni Kullanıcı Ekle</button>
+    <button onclick="changePassword()">Şifre Değiştir</button>
+  </div>
+
+  <div id="admin-users" style="display:none;">
+    <h3>👥 Tüm Üyeler</h3>
+    <ul id="admin-user-list"></ul>
+  </div>
+
+  <script>
+    let registeredUsers = JSON.parse(localStorage.getItem("registeredUsers")) || { emre: "1453" };
+    let blocked = JSON.parse(localStorage.getItem("blockedUsers")) || [];
+    let liste = JSON.parse(localStorage.getItem("katilimListesi") || "[]");
+    let counters = JSON.parse(localStorage.getItem("userCounters") || "{}");
+    let user = null;
+    let isAdmin = false;
+    let todayKey = new Date().toLocaleDateString("tr-TR");
+    let actionLog = JSON.parse(localStorage.getItem("dailyActionLog") || "{}");
+
+    function saveAll() {
+      localStorage.setItem("katilimListesi", JSON.stringify(liste));
+      localStorage.setItem("registeredUsers", JSON.stringify(registeredUsers));
+      localStorage.setItem("blockedUsers", JSON.stringify(blocked));
+      localStorage.setItem("userCounters", JSON.stringify(counters));
+      localStorage.setItem("dailyActionLog", JSON.stringify(actionLog));
+    }
+
+    function updateDate() {
+      document.getElementById("tarih").innerText = todayKey;
+    }
+
+    function isAfterCutoff() {
+      const now = new Date();
+      return now.getHours() > 19 || (now.getHours() === 19 && now.getMinutes() >= 30);
+    }
+
+    function login() {
+      const username = document.getElementById("username").value.trim().toLowerCase();
+      const password = document.getElementById("password").value.trim().toLowerCase();
+      if (blocked.includes(username)) return alert("Engelli kullanıcı");
+      if (registeredUsers[username] && registeredUsers[username].toLowerCase() === password) {
+        user = username;
+        isAdmin = username === "emre";
+        document.getElementById("login-form").style.display = "none";
+        document.getElementById("logout-btn").style.display = "inline-block";
+        document.getElementById("add-btn").style.display = "inline-block";
+        document.getElementById("remove-btn").style.display = "inline-block";
+        document.getElementById("user-greeting").innerText = `👋 Hoş geldin, ${user}`;
+        if (isAdmin) showAdminPanel();
+        renderList();
+      } else {
+        alert("Geçersiz giriş!");
+      }
+    }
+
+    function logout() {
+      user = null; isAdmin = false;
+      document.getElementById("login-form").style.display = "block";
+      document.getElementById("logout-btn").style.display = "none";
+      document.getElementById("add-btn").style.display = "none";
+      document.getElementById("remove-btn").style.display = "none";
+      document.getElementById("admin-panel").style.display = "none";
+      document.getElementById("admin-users").style.display = "none";
+      document.getElementById("user-greeting").innerText = "";
+    }
+
+    function addToList() {
+      if (!user) return;
+      if (isAfterCutoff()) return alert("19:30'dan sonra listeye katılım kapalıdır.");
+      if (liste.includes(user)) return alert("Zaten listedesin.");
+      liste.push(user);
+      saveAll();
+      renderList();
+    }
+
+    function removeFromList() {
+      if (!user) return;
+      if (isAfterCutoff()) return alert("19:30'dan sonra listeden çıkış kapalıdır.");
+      liste = liste.filter(x => x !== user);
+      saveAll();
+      renderList();
+    }
+
+    function renderList() {
+      const ana = liste.slice(0, 12);
+      const yedek = liste.slice(12, 18);
+      const ucuncu = liste.slice(18);
+
+      function getListHTML(list) {
+        return list.map((x, i) => {
+          const count = counters[x] || { geldi: 0, gelmedi: 0 };
+          const todayActions = actionLog[todayKey] || {};
+          const hasClicked = todayActions[x];
+          return `<li>${i + 1}. ${x} (${count.geldi}/${count.gelmedi}) ${isAdmin ? `<span class='counter-buttons'>
+            <button onclick=\"increaseCount('${x}', 'geldi')\" ${hasClicked ? 'disabled' : ''}>✅</button>
+            <button onclick=\"increaseCount('${x}', 'gelmedi')\" ${hasClicked ? 'disabled' : ''}>❌</button>
+            <button onclick=\"resetTodayCount('${x}')\">↩️</button>
+          </span>` : ""}</li>`;
+        }).join("");
+      }
+
+      document.getElementById("ana-listesi").innerHTML = getListHTML(ana);
+      document.getElementById("yedek-listesi").innerHTML = getListHTML(yedek);
+      document.getElementById("ucuncu-takim").style.display = ucuncu.length ? "block" : "none";
+      document.getElementById("ucuncu-listesi").innerHTML = getListHTML(ucuncu);
+    }
+
+    function increaseCount(name, type) {
+      const todayActions = actionLog[todayKey] || {};
+      if (todayActions[name]) return;
+      if (!counters[name]) counters[name] = { geldi: 0, gelmedi: 0 };
+      counters[name][type]++;
+      if (!actionLog[todayKey]) actionLog[todayKey] = {};
+      actionLog[todayKey][name] = type;
+      saveAll();
+      renderList();
+    }
+
+    function resetTodayCount(name) {
+      const todayActions = actionLog[todayKey] || {};
+      if (!todayActions[name]) return;
+      const type = todayActions[name];
+      counters[name][type] = Math.max(0, counters[name][type] - 1);
+      delete actionLog[todayKey][name];
+      saveAll();
+      renderList();
+    }
+
+    function showAdminPanel() {
+      document.getElementById("admin-panel").style.display = "block";
+      document.getElementById("admin-users").style.display = "block";
+      const userList = Object.keys(registeredUsers).map(u => {
+        const c = counters[u] || { geldi: 0, gelmedi: 0 };
+        return `<li>${u} (${c.geldi}/${c.gelmedi})
+          <button onclick="blockUser('${u}')">🚫</button>
+          <button onclick="unblockUser('${u}')">✅</button>
+        </li>`;
+      }).join("");
+      document.getElementById("admin-user-list").innerHTML = userList;
+    }
+
+    function registerUser() {
+      const newUser = prompt("Yeni kullanıcı adı:").trim().toLowerCase();
+      const newPass = prompt("Şifre:").trim().toLowerCase();
+      if (!registeredUsers[newUser]) {
+        registeredUsers[newUser] = newPass;
+        saveAll();
+        alert("Kullanıcı eklendi.");
+        showAdminPanel();
+      } else {
+        alert("Zaten var.");
+      }
+    }
+
+    function blockUser(u) {
+      if (!blocked.includes(u)) {
+        blocked.push(u);
+        saveAll();
+        alert(`${u} engellendi.`);
+        showAdminPanel();
+      }
+    }
+
+    function unblockUser(u) {
+      blocked = blocked.filter(x => x !== u);
+      saveAll();
+      alert(`${u} engeli kaldırıldı.`);
+      showAdminPanel();
+    }
+
+    function changePassword() {
+      if (!user) return;
+      const current = prompt("Mevcut şifren:").trim().toLowerCase();
+      if (registeredUsers[user].toLowerCase() !== current) return alert("Yanlış şifre!");
+      const newPass = prompt("Yeni şifre:").trim().toLowerCase();
+      registeredUsers[user] = newPass;
+      saveAll();
+      alert("Şifre güncellendi.");
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark");
+    }
+
+    updateDate();
+    renderList();
+  </script>
+</body>
+</html>
