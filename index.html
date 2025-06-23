@@ -5,65 +5,127 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Voleybol Katılım Listesi</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; background: #f0f4f8; text-align: center; }
+    body {
+      font-family: sans-serif;
+      background: #f0f4f8;
+      padding: 20px;
+      text-align: center;
+    }
     h1, h2, h3 { margin-top: 20px; }
-    ul { padding-left: 0; list-style-position: inside; }
-    button { margin-top: 10px; padding: 8px 12px; cursor: pointer; }
-    #admin-panel button { margin: 5px; }
-    .list-container { border: 2px solid #ccc; border-radius: 12px; padding: 15px; background-color: #fff; max-width: 600px; margin: 10px auto; }
-    .admin-users { position: fixed; top: 0; right: 0; background: #e8f0fe; border-left: 2px solid #ccc; border-bottom: 2px solid #ccc; padding: 10px; max-height: 100vh; overflow-y: auto; min-width: 180px; }
-    .admin-users h3 { margin-top: 0; }
-    .admin-users button { display: block; margin: 4px 0; width: 100%; }
-    #kapanis-saati-bilgi { font-weight: bold; color: #b30000; margin-top: 10px; }
-    .star { color: gray; cursor: pointer; font-size: 18px; }
-    .star.active { color: gold; }
-    @media screen and (max-width: 600px) {
-      body { padding: 10px; font-size: 0.95rem; }
-      button { padding: 6px 10px; font-size: 0.9rem; }
-      .admin-users { position: static; max-width: 100%; border: none; }
+    ul { list-style-position: inside; padding: 0; }
+    li { margin: 5px 0; }
+    button {
+      margin: 5px;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover { background-color: #0056b3; }
+    .list-container {
+      border: 2px solid #ccc;
+      border-radius: 12px;
+      padding: 15px;
+      background-color: #fff;
+      max-width: 600px;
+      margin: 10px auto;
+    }
+    .admin-users {
+      position: fixed;
+      top: 0;
+      right: 0;
+      background: #e8f0fe;
+      border-left: 2px solid #ccc;
+      border-bottom: 2px solid #ccc;
+      padding: 10px;
+      max-height: 100vh;
+      overflow-y: auto;
+      min-width: 200px;
+      display: none;
+    }
+    .inline-btn {
+      font-size: 12px;
+      padding: 2px 6px;
+      margin-left: 6px;
+    }
+    .star {
+      color: gray;
+      font-size: 18px;
+    }
+    .star.active {
+      color: gold;
+    }
+    .status-btn {
+      padding: 4px 8px;
+      font-size: 11px;
+      margin-left: 4px;
+      border-radius: 4px;
+    }
+    .gelmedi { background-color: #dc3545; }
+    .geldi { background-color: #28a745; }
+    #kapanis-saati-bilgi {
+      font-weight: bold;
+      margin-top: 8px;
+      color: #b30000;
     }
   </style>
+</head>
+<body>
+  <h1>📅 <span id="tarih"></span> Voleybol Katılım Listesi</h1>
+  <p id="user-greeting"></p>
+  <p id="kapanis-saati-bilgi"></p>
+  <button id="login-btn" onclick="login()">Giriş Yap</button>
+  <button id="logout-btn" onclick="logout()" style="display:none">Çıkış Yap</button>
+  <button id="add-btn" onclick="addToList()" style="display:none">Listeye Katıl</button>
+  <button id="remove-btn" onclick="removeFromList()" style="display:none">Listeden Ayrıl</button>
+  <button onclick="toggleAdminPanel()" id="admin-panel-toggle" style="display:none">👥 Üyeler</button>
+
+  <div class="list-container">
+    <h2>🟢 Katılım Listesi</h2>
+    <ul id="katilimListesi"></ul>
+  </div>
+
+  <div class="admin-users" id="admin-users">
+    <h3>👥 Üye Listesi</h3>
+    <button onclick="addUser()">Yeni Kullanıcı Ekle</button>
+    <label>Kapanış Saati: <input type="time" id="kapanisInput" value="19:30" /></label>
+    <button onclick="setKapanisSaati()">Kaydet</button>
+    <ul id="admin-user-list"></ul>
+  </div>
+
   <script>
     let currentUser = null;
     let isAdmin = false;
     let registeredUsers = JSON.parse(localStorage.getItem("registeredUsers") || '{"emre":"1453"}');
-    let blockedUsers = JSON.parse(localStorage.getItem("blockedUsers") || "[]");
-    let kapanisSaati = localStorage.getItem("kapanisSaati") || "19:30";
     let starRatings = JSON.parse(localStorage.getItem("starRatings") || "{}");
+    let katilimListesi = JSON.parse(localStorage.getItem("katilimListesi") || "[]");
+    let gelmeDurumu = JSON.parse(localStorage.getItem("gelmeDurumu") || "{}");
+    let katilimSayisi = JSON.parse(localStorage.getItem("katilimSayisi") || "{}");
+    let kapanisSaati = localStorage.getItem("kapanisSaati") || "19:30";
 
-    function saveBlockedUsers() {
-      localStorage.setItem("blockedUsers", JSON.stringify(blockedUsers));
-    }
-
-    function saveStarRatings() {
+    function saveAll() {
+      localStorage.setItem("registeredUsers", JSON.stringify(registeredUsers));
       localStorage.setItem("starRatings", JSON.stringify(starRatings));
+      localStorage.setItem("katilimListesi", JSON.stringify(katilimListesi));
+      localStorage.setItem("gelmeDurumu", JSON.stringify(gelmeDurumu));
+      localStorage.setItem("katilimSayisi", JSON.stringify(katilimSayisi));
+      localStorage.setItem("kapanisSaati", kapanisSaati);
     }
 
     function login() {
-      const usernameInput = prompt("Kullanıcı adınızı girin:");
-      const passwordInput = prompt("Şifrenizi girin:");
-      const username = usernameInput.trim().toLowerCase();
-      const password = passwordInput.trim();
-
-      if (blockedUsers.includes(username)) {
-        alert("Bu kullanıcı engellenmiş.");
-        return;
-      }
-
+      const username = prompt("Kullanıcı adınızı girin:").trim().toLowerCase();
+      const password = prompt("Şifrenizi girin:").trim();
       if (registeredUsers[username] && registeredUsers[username] === password) {
         currentUser = username;
         isAdmin = (username === "emre");
         document.getElementById("login-btn").style.display = "none";
         document.getElementById("logout-btn").style.display = "inline-block";
         document.getElementById("add-btn").style.display = "inline-block";
+        document.getElementById("remove-btn").style.display = "inline-block";
         document.getElementById("user-greeting").innerText = `👋 Hoş geldin, ${username}`;
-        if (isAdmin) {
-          document.getElementById("admin-panel").style.display = "block";
-          document.getElementById("admin-users").style.display = "block";
-          document.getElementById("kapanis-saati-ayari").style.display = "block";
-          document.getElementById("kapanisInput").value = kapanisSaati;
-          renderAdminUsers();
-        }
+        if (isAdmin) document.getElementById("admin-panel-toggle").style.display = "inline-block";
         renderLists();
       } else {
         alert("Geçersiz kullanıcı adı veya şifre.");
@@ -76,117 +138,96 @@
       document.getElementById("login-btn").style.display = "inline-block";
       document.getElementById("logout-btn").style.display = "none";
       document.getElementById("add-btn").style.display = "none";
-      document.getElementById("admin-panel").style.display = "none";
-      document.getElementById("admin-users").style.display = "none";
-      document.getElementById("kapanis-saati-ayari").style.display = "none";
+      document.getElementById("remove-btn").style.display = "none";
+      document.getElementById("admin-panel-toggle").style.display = "none";
       document.getElementById("user-greeting").innerText = "";
+      document.getElementById("admin-users").style.display = "none";
     }
 
-    function renderAdminUsers() {
-      if (!isAdmin) return;
-      const userList = Object.keys(registeredUsers).map(k => {
-        const stars = starRatings[k] || 0;
-        return `<li>${k} ⭐ ${stars} <button onclick="blockUserByName('${k}')">🚫</button> <button onclick="unblockUserByName('${k}')">✅</button></li>`;
-      }).join('');
-      document.getElementById("admin-users").innerHTML = `<h3>👥 Üyeler</h3><ul>${userList}</ul>`;
+    function addToList() {
+      if (!currentUser || katilimListesi.includes(currentUser)) return;
+      katilimListesi.push(currentUser);
+      katilimSayisi[currentUser] = (katilimSayisi[currentUser] || 0) + 1;
+      saveAll();
+      renderLists();
     }
 
-    function blockUserByName(username) {
-      if (!blockedUsers.includes(username)) {
-        blockedUsers.push(username);
-        saveBlockedUsers();
-        alert(`${username} engellendi.`);
-        renderAdminUsers();
+    function removeFromList() {
+      if (!currentUser) return;
+      katilimListesi = katilimListesi.filter(u => u !== currentUser);
+      saveAll();
+      renderLists();
+    }
+
+    function toggleAdminPanel() {
+      const panel = document.getElementById("admin-users");
+      panel.style.display = panel.style.display === "none" ? "block" : "none";
+    }
+
+    function addUser() {
+      const newUser = prompt("Yeni kullanıcı adı:").trim().toLowerCase();
+      const pass = prompt("Şifresi:").trim();
+      if (newUser && pass) {
+        registeredUsers[newUser] = pass;
+        saveAll();
+        renderLists();
       }
     }
 
-    function unblockUserByName(username) {
-      blockedUsers = blockedUsers.filter(u => u !== username);
-      saveBlockedUsers();
-      alert(`${username} engeli kaldırıldı.`);
-      renderAdminUsers();
+    function setKapanisSaati() {
+      const time = document.getElementById("kapanisInput").value;
+      kapanisSaati = time;
+      saveAll();
+      renderLists();
     }
 
-    function setKapanisSaati() {
-      const saat = document.getElementById("kapanisInput").value;
-      kapanisSaati = saat;
-      localStorage.setItem("kapanisSaati", saat);
-      document.getElementById("kapanis-saati-bilgi").innerText = `⏰ Katılım ${saat}'a kadar yapılabilir.`;
-      alert("Kapanış saati güncellendi.");
+    function toggleGelme(user, status) {
+      gelmeDurumu[user] = status;
+      saveAll();
+      renderLists();
     }
 
     function renderLists() {
-      const userEntries = Object.keys(registeredUsers)
-        .filter(u => !blockedUsers.includes(u))
-        .map(u => ({ name: u, stars: starRatings[u] || 0 }))
-        .sort((a, b) => b.stars - a.stars);
+      document.getElementById("kapanis-saati-bilgi").innerText = `⏰ Katılım ${kapanisSaati}'a kadar yapılabilir.`;
 
-      const list = userEntries.map(user => {
-        let starsHtml = "";
-        for (let i = 1; i <= 5; i++) {
-          const active = i <= user.stars ? "active" : "";
-          if (isAdmin) {
-            starsHtml += `<span class='star ${active}' onclick='rateUser("${user.name}", ${i})'>★</span>`;
-          } else {
-            starsHtml += `<span class='star ${active}'>★</span>`;
-          }
-        }
-        return `<li>${user.name} ${starsHtml}</li>`;
+      const ul = document.getElementById("katilimListesi");
+      let list = katilimListesi.map(user => {
+        const durum = gelmeDurumu[user];
+        let btns = isAdmin
+          ? `<button class='status-btn geldi' onclick='toggleGelme("${user}", "geldi")'>Geldi</button>
+             <button class='status-btn gelmedi' onclick='toggleGelme("${user}", "gelmedi")'>Gelmedi</button>`
+          : "";
+        return `<li>${user} ${btns}</li>`;
       }).join('');
+      ul.innerHTML = list;
 
-      document.getElementById("ana-takim").innerHTML = list;
+      if (isAdmin) {
+        const adminUl = document.getElementById("admin-user-list");
+        let adminList = Object.keys(registeredUsers).map(user => {
+          const stars = starRatings[user] || 0;
+          const sayi = katilimSayisi[user] || 0;
+          let starHtml = "";
+          for (let i = 1; i <= 5; i++) {
+            starHtml += `<span class='star ${i <= stars ? "active" : ""}' onclick='rateUser("${user}", ${i})'>★</span>`;
+          }
+          return `<li>${user} (${sayi}) ${starHtml}</li>`;
+        }).join('');
+        adminUl.innerHTML = adminList;
+      }
     }
 
-    function rateUser(username, stars) {
+    function rateUser(user, stars) {
       if (!isAdmin) return;
-      starRatings[username] = stars;
-      saveStarRatings();
+      starRatings[user] = stars;
+      saveAll();
       renderLists();
-      renderAdminUsers();
     }
 
     document.addEventListener("DOMContentLoaded", () => {
       const today = new Date().toLocaleDateString("tr-TR");
       document.getElementById("tarih").innerText = today;
-      document.getElementById("kapanis-saati-bilgi").innerText = `⏰ Katılım ${kapanisSaati}'a kadar yapılabilir.`;
       renderLists();
     });
   </script>
-</head>
-<body>
-  <h1>📅 <span id="tarih"></span> Voleybol Katılım Listesi</h1>
-  <p id="user-greeting"></p>
-  <p id="sira-bilgi"></p>
-  <p id="kapanis-saati-bilgi"></p>
-  <button id="login-btn" onclick="login()">Giriş Yap</button>
-  <button id="logout-btn" onclick="logout()" style="display:none">Çıkış Yap</button>
-  <button id="add-btn" style="display:none">İsmini Listeye Ekle</button>
-
-  <div id="admin-panel" style="display:none; margin-top:20px;">
-    <h3>🔧 Admin Paneli</h3>
-    <button onclick="resetList()">Listeyi Sıfırla</button>
-    <button onclick="exportCSV()">Listeyi CSV Olarak İndir</button>
-    <button onclick="registerUser()">Yeni Kullanıcı Ekle</button>
-    <button onclick="blockUser()">Kullanıcı Engelle</button>
-    <button onclick="unblockUser()">Engeli Kaldır</button>
-    <div id="kapanis-saati-ayari" style="display:none; margin-top:10px;">
-      <label>Kapanış Saati: <input id="kapanisInput" type="time" value="19:30" /></label>
-      <button onclick="setKapanisSaati()">Kaydet</button>
-    </div>
-  </div>
-
-  <div class="list-container">
-    <h2>🟢 Ana Takım</h2>
-    <ul id="ana-takim"></ul>
-  </div>
-
-  <div class="list-container">
-    <h2>🟡 Yedekler</h2>
-    <ul id="yedek-takim"></ul>
-  </div>
-
-  <div class="list-container" id="ucuncu-takim"></div>
-
-  <div id="admin-users" class="admin-users" style="display: none;"></div>
 </body>
 </html>
